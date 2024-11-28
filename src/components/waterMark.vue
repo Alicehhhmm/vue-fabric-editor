@@ -2,21 +2,16 @@
  * @Author: June
  * @Description:
  * @Date: 2023-11-01 11:54:10
- * @LastEditors: June
- * @LastEditTime: 2023-11-04 16:11:12
+ * @LastEditors: 秦少卫
+ * @LastEditTime: 2024-04-22 00:51:43
 -->
 <template>
   <Button type="text" @click="addWaterMark">
     {{ $t('waterMark.text') }}
   </Button>
 
-  <Modal
-    v-model="showWaterMadal"
-    :title="$t('waterMark.modalTitle')"
-    @on-ok="onModalOk"
-    @on-cancel="onMadalCancel"
-  >
-    <div class="setting-item">
+  <Modal v-model="showWaterMadal" :title="$t('waterMark.modalTitle')">
+    <div class="setting-item required">
       <span class="mr-10px">{{ $t('waterMark.setting.name') }}</span>
       <Input
         class="w-320"
@@ -26,23 +21,41 @@
         :placeholder="$t('placeholder')"
       />
     </div>
+    <div class="setting-item font-selector">
+      <span class="mr-10px">选择字体</span>
+      <Select class="w-320" v-model="waterMarkState.fontFamily" @on-change="changeFontFamily">
+        <Option v-for="item in fontsList" :value="item.name" :key="`font-${item.name}`">
+          <div class="font-item" v-if="!item.img">{{ item.name }}</div>
+          <div class="font-item" v-else :style="`background-image:url('${item.img}');`">
+            {{ !item.img ? item : '' }}
+            <!-- 解决无法选中问题 -->
+            <span style="display: none">{{ item.name }}</span>
+          </div>
+        </Option>
+      </Select>
+    </div>
     <div class="setting-item">
       <span class="mr-10px">{{ $t('waterMark.setting.size') }}</span>
 
       <Slider class="w-320" v-model="waterMarkState.size" :min="18" :max="48"></Slider>
     </div>
     <div class="setting-item">
+      <span class="mr-10px">{{ $t('waterMark.setting.color') }}</span>
+
+      <ColorPicker v-model="waterMarkState.color" alpha size="small" />
+    </div>
+    <div class="setting-item">
       <span class="mr-10px">{{ $t('waterMark.setting.position.label') }}</span>
 
       <RadioGroup v-model="waterMarkState.position">
-        <Radio label="lt">{{ $t('waterMark.setting.position.lt') }}</Radio>
-        <Radio label="rt">{{ $t('waterMark.setting.position.rt') }}</Radio>
-        <Radio label="lb">{{ $t('waterMark.setting.position.lb') }}</Radio>
-        <Radio label="rb">{{ $t('waterMark.setting.position.rb') }}</Radio>
-        <Radio label="full">{{ $t('waterMark.setting.position.full') }}</Radio>
+        <Radio :label="POSITION.lt">{{ $t('waterMark.setting.position.lt') }}</Radio>
+        <Radio :label="POSITION.rt">{{ $t('waterMark.setting.position.rt') }}</Radio>
+        <Radio :label="POSITION.lb">{{ $t('waterMark.setting.position.lb') }}</Radio>
+        <Radio :label="POSITION.rb">{{ $t('waterMark.setting.position.rb') }}</Radio>
+        <Radio :label="POSITION.full">{{ $t('waterMark.setting.position.full') }}</Radio>
       </RadioGroup>
     </div>
-    <div class="setting-item" v-show="waterMarkState.position === 'full'">
+    <div class="setting-item" v-show="waterMarkState.position === POSITION.full">
       <span class="mr-10px">{{ $t('waterMark.setting.angle') }}</span>
 
       <div>
@@ -52,149 +65,78 @@
         </RadioGroup>
       </div>
     </div>
+    <template #footer>
+      <Button type="text" @click="onCleanUpWaterMark">
+        {{ `${$t('cleanUp')}${$t('waterMark.text')}` }}
+      </Button>
+      <Button type="primary" @click="onModalOk">确定</Button>
+    </template>
   </Modal>
 </template>
 
 <script name="WaterMark" lang="ts" setup>
-import { debounce } from 'lodash-es';
-import { Message } from 'view-ui-plus';
+import { cloneDeep, debounce } from 'lodash-es';
 import useSelect from '@/hooks/select';
+// import { useFont } from '@/hooks';
+import { Message } from 'view-ui-plus';
+enum POSITION {
+  lt = 'Left_Top',
+  lb = 'Left_Right',
+  rt = 'Right_Top',
+  rb = 'Right_Bottom',
+  full = 'Full',
+}
 
+type IPosition = POSITION.lt | POSITION.lb | POSITION.rt | POSITION.rb | POSITION.full; // lt 左上 lr 左上 rt 右上  rb 右下 full 平铺 后续可扩展其他功能
+
+type IDrawOps = {
+  text: string;
+  size: number;
+  fontFamily: string;
+  color: string;
+  isRotate: boolean;
+  position: IPosition;
+};
 const { canvasEditor }: any = useSelect();
-const waterMarkState = reactive({
+
+const fontsList: any = ref([]);
+canvasEditor.getFontList().then((list: any) => {
+  fontsList.value = list;
+});
+const waterMarkState: any = reactive({
   text: '',
   size: 24,
   isRotate: 0, // 组件不支持boolean
-  font: 'serif', // 可考虑自定义字体
+  fontFamily: '汉体', // 可考虑自定义字体
   color: '#ccc', // 可考虑自定义颜色
-  position: 'lt', // lt 左上 lr 右上 lb 左下  rb 右下 full 平铺
+  position: POSITION.lt, // lt 左上 rt 右上 lb 左下  rb 右下 full 平铺
 });
 
 const showWaterMadal = ref(false);
-const onMadalCancel = () => {
+
+const onCleanUpWaterMark = () => {
   waterMarkState.text = '';
   waterMarkState.size = 24;
-  waterMarkState.font = 'serif';
+  waterMarkState.fontFamily = 'serif';
   waterMarkState.color = '#ccc';
-  waterMarkState.position = 'lt';
+  waterMarkState.position = POSITION.lt;
   waterMarkState.isRotate = 0;
+  canvasEditor.clearWaterMMatk();
+  showWaterMadal.value = false;
 };
 
-const createCanvas = (width: number, height: number) => {
-  const waterCanvas = document.createElement('canvas');
-  waterCanvas.width = width;
-  waterCanvas.height = height;
-  waterCanvas.style.position = 'fixed';
-  waterCanvas.style.opacity = '0';
-  waterCanvas.style.zIndex = '-1';
-  return waterCanvas;
-};
-
-const drawWaterMark: Record<string, any> = {
-  lt: (width: number, height: number, cb: (imgString: string) => void) => {
-    let waterCanvas: HTMLCanvasElement | null = createCanvas(width, height);
-    const w = waterCanvas.width || width;
-    let ctx: CanvasRenderingContext2D | null = waterCanvas.getContext('2d')!;
-    ctx.fillStyle = waterMarkState.color;
-    ctx.font = `${waterMarkState.size}px ${waterMarkState.font}`;
-    ctx.fillText(waterMarkState.text, 10, waterMarkState.size + 10, w - 20);
-    cb && cb(waterCanvas.toDataURL());
-    waterCanvas = null;
-    ctx = null;
-  },
-  rt: (width: number, height: number, cb: (imgString: string) => void) => {
-    let waterCanvas: HTMLCanvasElement | null = createCanvas(width, height);
-    let ctx: CanvasRenderingContext2D | null = waterCanvas.getContext('2d')!;
-    const w = waterCanvas.width || width;
-    ctx.fillStyle = waterMarkState.color;
-    ctx.font = `${waterMarkState.size}px ${waterMarkState.font}`;
-    ctx.fillText(
-      waterMarkState.text,
-      w - ctx.measureText(waterMarkState.text).width - 20,
-      waterMarkState.size + 10,
-      w - 20
-    );
-    cb && cb(waterCanvas.toDataURL());
-    waterCanvas = null;
-    ctx = null;
-  },
-  lb: (width: number, height: number, cb: (imgString: string) => void) => {
-    let waterCanvas: HTMLCanvasElement | null = createCanvas(width, height);
-    let ctx: CanvasRenderingContext2D | null = waterCanvas.getContext('2d')!;
-    const w = waterCanvas.width || width;
-    const h = waterCanvas.height || height;
-    ctx.fillStyle = waterMarkState.color;
-    ctx.font = `${waterMarkState.size}px ${waterMarkState.font}`;
-    ctx.fillText(waterMarkState.text, 10, h - waterMarkState.size, w - 20);
-    cb && cb(waterCanvas.toDataURL());
-    waterCanvas = null;
-    ctx = null;
-  },
-  rb: (width: number, height: number, cb: (imgString: string) => void) => {
-    let waterCanvas: HTMLCanvasElement | null = createCanvas(width, height);
-    let ctx: CanvasRenderingContext2D | null = waterCanvas.getContext('2d')!;
-    const w = waterCanvas.width || width;
-    ctx.fillStyle = waterMarkState.color;
-    ctx.font = `${waterMarkState.size}px ${waterMarkState.font}`;
-    ctx.fillText(
-      waterMarkState.text,
-      w - ctx.measureText(waterMarkState.text).width - 20,
-      height - waterMarkState.size,
-      width - 20
-    );
-    cb && cb(waterCanvas.toDataURL());
-    waterCanvas = null;
-    ctx = null;
-  },
-  full: (width: number, height: number, cb: (imgString: string) => void) => {
-    let waterCanvas: HTMLCanvasElement | null = createCanvas(width, height);
-    let ctx: CanvasRenderingContext2D | null = waterCanvas.getContext('2d')!;
-    const textW = ctx.measureText(waterMarkState.text).width + 40;
-    let patternCanvas: HTMLCanvasElement | null = createCanvas(
-      waterMarkState.isRotate === 0 ? textW : textW * 2, // 若有倾斜，那么斜边都会大于直角边 按30度算2倍(简单)
-      waterMarkState.isRotate === 0 ? waterMarkState.size + 20 : textW + 20
-    );
-    document.body.appendChild(patternCanvas);
-    let ctxWater: CanvasRenderingContext2D | null = patternCanvas.getContext('2d')!;
-    ctxWater.textAlign = 'left';
-    ctxWater.textBaseline = 'top';
-    ctxWater.font = `${waterMarkState.size}px ${waterMarkState.font}`;
-    ctxWater.fillStyle = `${waterMarkState.color}`;
-    if (waterMarkState.isRotate === 0) {
-      ctxWater.fillText(waterMarkState.text, 10, 10);
-    } else {
-      ctxWater.translate(0, textW - 10);
-      ctxWater.rotate((-30 * Math.PI) / 180); // 简单例子 按30度算
-      ctxWater.fillText(waterMarkState.text, 0, 0);
-    }
-    ctx.fillStyle = ctx.createPattern(patternCanvas, 'repeat')!;
-    ctx.fillRect(0, 0, width, height);
-    cb && cb(waterCanvas.toDataURL());
-    waterCanvas = null;
-    patternCanvas = null;
-    ctx = null;
-    ctxWater = null;
-  },
-};
-
-const onModalOk = () => {
+const onModalOk = async () => {
   if (!waterMarkState.text) return Message.warning('水印名字不能为空');
-  const workspace = canvasEditor.canvas.getObjects().find((item: any) => item.id === 'workspace');
-  const { width, height, left, top } = workspace;
-  drawWaterMark[waterMarkState.position](width, height, (imgString: string) => {
-    canvasEditor.canvas.overlayImage = null; // 清空覆盖层
-    canvasEditor.canvas.setOverlayImage(
-      imgString,
-      canvasEditor.canvas.renderAll.bind(canvasEditor.canvas),
-      {
-        left: left || 0,
-        top: top || 0,
-        originX: 'left',
-        originY: 'top',
-      }
-    );
-  });
-  onMadalCancel();
+  const ops: IDrawOps = cloneDeep(waterMarkState);
+  ops.isRotate = !!ops.isRotate; // 转为对应类型  后续再统一处理类型
+  await canvasEditor.drawWaterMark(ops);
+  showWaterMadal.value = false;
+  // onMadalCancel();
+};
+
+const changeFontFamily = (fontName: string) => {
+  if (!fontName) return;
+  canvasEditor.loadFont(fontName);
 };
 
 const addWaterMark = debounce(function () {
@@ -215,5 +157,25 @@ const addWaterMark = debounce(function () {
   justify-content: flex-start;
   align-items: center;
   margin-bottom: 10px;
+  position: relative;
+  &.required::before {
+    content: '*';
+    color: red;
+    position: absolute;
+    top: 3px;
+    left: -6px;
+  }
+}
+.font-selector {
+  :deep(.ivu-select-item) {
+    padding: 1px 4px;
+  }
+
+  .font-item {
+    height: 40px;
+    width: 330px;
+    background-size: auto 40px;
+    background-repeat: no-repeat;
+  }
 }
 </style>

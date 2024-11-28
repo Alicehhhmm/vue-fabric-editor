@@ -3,8 +3,8 @@
  * @version:
  * @Author: June
  * @Date: 2023-04-24 00:25:39
- * @LastEditors: 秦少卫
- * @LastEditTime: 2024-02-06 15:40:37
+ * @LastEditors: June
+ * @LastEditTime: 2024-10-09 23:57:48
  */
 import { defineConfig, loadEnv } from 'vite';
 import vue from '@vitejs/plugin-vue';
@@ -15,13 +15,15 @@ import vueSetupExtend from 'vite-plugin-vue-setup-extend-plus';
 import autoImports from 'unplugin-auto-import/vite';
 import { resolve } from 'path';
 import autoprefixer from 'autoprefixer';
+import svgLoader from 'vite-svg-loader';
+import viteCompression from 'vite-plugin-compression';
 
 const config = ({ mode }) => {
   const isProd = mode === 'production';
   const envPrefix = 'APP_';
-  const { APP_TITLE = '' } = loadEnv(mode, process.cwd(), envPrefix);
+  const { APP_TITLE = '', APP_BASE_PATH } = loadEnv(mode, process.cwd(), envPrefix);
   return {
-    base: isProd ? '/vue-fabric-editor/' : '/',
+    base: isProd ? APP_BASE_PATH : '/',
     plugins: [
       vue(),
       autoImports({
@@ -46,6 +48,15 @@ const config = ({ mode }) => {
             title: APP_TITLE,
           },
         },
+      }),
+      svgLoader(),
+      viteCompression({
+        verbose: true,
+        disable: false,
+        deleteOriginFile: false,
+        threshold: 5120,
+        algorithm: 'gzip',
+        ext: '.gz',
       }),
     ],
     build: {

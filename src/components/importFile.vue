@@ -2,7 +2,7 @@
  * @Author: 秦少卫
  * @Date: 2022-09-03 19:16:55
  * @LastEditors: 秦少卫
- * @LastEditTime: 2023-07-16 12:51:11
+ * @LastEditTime: 2024-07-06 17:23:50
  * @Description: 插入SVG元素
 -->
 
@@ -42,7 +42,9 @@
 </template>
 
 <script name="ImportFile" setup>
-import { getImgStr, selectFiles } from '@/utils/utils';
+import { Utils } from '@kuaitu/core';
+const { getImgStr, selectFiles } = Utils;
+
 import useSelect from '@/hooks/select';
 import { v4 as uuid } from 'uuid';
 
@@ -83,9 +85,10 @@ const HANDLEMAP = {
       const item = fabric.util.groupSVGElements(objects, {
         ...options,
         name: 'defaultSVG',
-        id: uuid(),
       });
-      canvasEditor.canvas.add(item).centerObject(item).renderAll();
+      canvasEditor.addBaseType(item, {
+        scale: true,
+      });
     });
   },
 };
@@ -101,19 +104,11 @@ function insertImgFile(file) {
   imgEl.src = file;
   // 插入页面
   document.body.appendChild(imgEl);
-  imgEl.onload = () => {
-    // 创建图片对象
-    const imgInstance = new fabric.Image(imgEl, {
-      id: uuid(),
-      name: '图片1',
-      left: 100,
-      top: 100,
+  imgEl.onload = async () => {
+    const imgItem = await canvasEditor.createImgByElement(imgEl);
+    canvasEditor.addBaseType(imgItem, {
+      scale: true,
     });
-    // 设置缩放
-    canvasEditor.canvas.add(imgInstance);
-    canvasEditor.canvas.setActiveObject(imgInstance);
-    canvasEditor.canvas.renderAll();
-    // 删除页面中的图片元素
     imgEl.remove();
   };
 }
@@ -127,7 +122,9 @@ function insertSvgFile(svgFile) {
       name: 'defaultSVG',
       id: uuid(),
     });
-    canvasEditor.canvas.add(item).centerObject(item).renderAll();
+    canvasEditor.addBaseType(item, {
+      scale: true,
+    });
   });
 }
 </script>

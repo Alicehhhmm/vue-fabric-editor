@@ -1,51 +1,47 @@
 /*
- * @Descripttion: useSelect(原mixin)  类型待优化
- * @version:
- * @Author: June
- * @Date: 2023-04-23 21:10:05
+ * @Author: 秦少卫
+ * @Date: 2024-10-07 17:12:29
  * @LastEditors: 秦少卫
- * @LastEditTime: 2024-02-06 17:53:05
+ * @LastEditTime: 2024-10-07 17:14:13
+ * @Description: 通用属性hook
  */
-import { inject, onBeforeMount, onMounted, reactive } from 'vue';
-import { SelectEvent, SelectMode } from '@/utils/event/types';
 
-import EventEmitter from 'events';
+import { inject, computed, reactive, onMounted, onBeforeMount } from 'vue';
 
-interface Selector {
-  mSelectMode: SelectMode;
-  mSelectOneType: string | undefined;
-  mSelectId: string | undefined;
-  mSelectIds: (string | undefined)[];
-  mSelectActive: unknown[];
-}
+import Editor, { EventType } from '@kuaitu/core';
+const { SelectMode, SelectEvent } = EventType;
 
-export default function useSelect() {
-  const state = reactive<Selector>({
+import { useI18n } from 'vue-i18n';
+
+export default function useSelect(matchType?: Array<string>) {
+  const { t } = useI18n();
+  const fabric = inject('fabric');
+  const canvasEditor = inject('canvasEditor') as Editor;
+
+  const state = reactive({
     mSelectMode: SelectMode.EMPTY,
     mSelectOneType: '',
-    mSelectId: '', // 选择id
-    mSelectIds: [], // 选择id
-    mSelectActive: [],
+    mSelectId: '' as any, // 选择id
+    mSelectIds: [] as any, // 选择id
+    mSelectActive: [] as fabric.Object[],
   });
-
-  const fabric = inject('fabric');
-  // const canvas = inject('canvas');
-  const canvasEditor = inject('canvasEditor');
-  const event = inject('event') as EventEmitter;
-
-  const selectOne = (e: [fabric.Object]) => {
+  const selectOne = (arr: fabric.Object[]) => {
     state.mSelectMode = SelectMode.ONE;
-    if (e[0]) {
-      state.mSelectId = e[0].id;
-      state.mSelectOneType = e[0].type;
-      state.mSelectIds = e.map((item) => item.id);
+    const [item] = arr;
+    if (item) {
+      state.mSelectActive = [item];
+      state.mSelectId = item.id;
+      state.mSelectOneType = item.type;
+      state.mSelectIds = [item.id];
     }
+    callBack();
   };
 
-  const selectMulti = (e: fabric.Object[]) => {
+  const selectMulti = (arr: fabric.Object[]) => {
     state.mSelectMode = SelectMode.MULTI;
     state.mSelectId = '';
-    state.mSelectIds = e.map((item) => item.id);
+    state.mSelectIds = arr.map((item) => item.id);
+    callBack();
   };
 
   const selectCancel = () => {
@@ -53,24 +49,53 @@ export default function useSelect() {
     state.mSelectIds = [];
     state.mSelectMode = SelectMode.EMPTY;
     state.mSelectOneType = '';
+    callBack();
   };
 
+  let callBack = () => {
+    //
+  };
+  const getObjectAttr = (cb: any) => {
+    callBack = cb;
+  };
   onMounted(() => {
-    event.on(SelectEvent.ONE, selectOne);
-    event.on(SelectEvent.MULTI, selectMulti);
-    event.on(SelectEvent.CANCEL, selectCancel);
+    canvasEditor.on(SelectEvent.ONE, selectOne);
+    canvasEditor.on(SelectEvent.MULTI, selectMulti);
+    canvasEditor.on(SelectEvent.CANCEL, selectCancel);
   });
 
   onBeforeMount(() => {
-    event.off(SelectEvent.ONE, selectOne);
-    event.off(SelectEvent.MULTI, selectMulti);
-    event.off(SelectEvent.CANCEL, selectCancel);
+    canvasEditor.off(SelectEvent.ONE, selectOne);
+    canvasEditor.off(SelectEvent.MULTI, selectMulti);
+    canvasEditor.off(SelectEvent.CANCEL, selectCancel);
   });
 
+  let isMatchType;
+  if (matchType) {
+    isMatchType = computed(() => matchType.includes(state.mSelectOneType));
+  }
+  const isOne = computed(() => state.mSelectMode === 'one');
+  const isMultiple = computed(() => state.mSelectMode === 'multiple');
+  const isGroup = computed(() => state.mSelectMode === 'one' && state.mSelectOneType === 'group');
+  const isSelect = computed(() => state.mSelectMode);
+
+  const selectType = computed(() => state.mSelectOneType);
+
+  const matchTypeHander = (types: string[]) => {
+    return computed(() => types.includes(state.mSelectOneType));
+  };
   return {
     fabric,
-    // canvas,
     canvasEditor,
     mixinState: state,
+    selectType,
+    isSelect,
+    isGroup,
+    isOne,
+    isMultiple,
+    isMatchType,
+    matchTypeHander,
+    getObjectAttr,
+    t,
   };
 }

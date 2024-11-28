@@ -1,135 +1,70 @@
 <!--
  * @Author: 秦少卫
  * @Date: 2022-09-03 19:16:55
- * @LastEditors: 秦少卫
- * @LastEditTime: 2024-02-20 13:11:30
+ * @LastEditors: June
+ * @LastEditTime: 2024-11-22 15:28:43
  * @Description: 尺寸设置
 -->
 
 <template>
-  <div v-if="!mixinState.mSelectMode">
-    <Divider plain orientation="left">{{ $t('size') }}</Divider>
-    <Form :label-width="40" class="form-wrap">
-      <FormItem :label="$t('width')" prop="name">
-        <InputNumber disabled v-model="width" @on-change="setSize"></InputNumber>
+  <div v-if="!isSelect" class="attr-item-box">
+    <!-- <h3>{{ $t('bgSeting.size') }}</h3> -->
+    <Divider plain orientation="left">
+      <h4>{{ $t('bgSeting.size') }}</h4>
+    </Divider>
+    <Form :label-width="40" inline class="form-wrap">
+      <FormItem :label="$t('bgSeting.width')" prop="name">
+        <InputNumber disabled v-model="width" readonly @on-change="setSize"></InputNumber>
       </FormItem>
-      <FormItem :label="$t('height')" prop="name">
-        <InputNumber disabled v-model="height" @on-change="setSize"></InputNumber>
+      <FormItem :label="$t('bgSeting.height')" prop="name">
+        <InputNumber disabled v-model="height" readonly @on-change="setSize"></InputNumber>
+      </FormItem>
+      <FormItem :label-width="0">
+        <Button type="text" @click="showSetSize">
+          <Icon type="md-create" />
+        </Button>
       </FormItem>
     </Form>
-    <Button type="primary" @click="() => (showModal = true)">调整尺寸</Button>
 
-    <Modal
-      v-model="showModal"
-      :title="$t('setSizeTip')"
-      @on-ok="handleConfirm"
-      @on-cancel="handleClose"
-    >
-      <p>{{ $t('default_size') }}</p>
-      <ButtonGroup vertical style="margin: 10px 0">
-        <Button
-          v-for="(item, i) in presetSize"
-          :key="`${i}presetSize`"
-          size="small"
-          style="text-align: left"
-          @click="setSizeBy(item.width, item.height)"
-        >
-          {{ item.label }}:{{ item.width }}x{{ item.height }}
-        </Button>
-      </ButtonGroup>
-
-      <Form :label-width="40" class="form-wrap" style="justify-content: flex-start">
-        <FormItem :label="$t('width')" prop="name" style="margin-right: 10px">
-          <InputNumber :min="1" :max="5000" v-model="modalData.width"></InputNumber>
-        </FormItem>
-        <FormItem :label="$t('height')" prop="name">
-          <InputNumber :min="1" :max="5000" v-model="modalData.height"></InputNumber>
-        </FormItem>
-      </Form>
-    </Modal>
+    <!-- <Divider plain></Divider> -->
+    <!-- 修改尺寸 -->
+    <modalSzie :title="$t('setSizeTip')" ref="modalSizeRef" @set="handleConfirm"></modalSzie>
   </div>
 </template>
 
 <script setup name="CanvasSize">
-import { Modal } from 'view-ui-plus';
 import useSelect from '@/hooks/select';
-import { useI18n } from 'vue-i18n';
+import modalSzie from '@/components/common/modalSzie';
 
-const { mixinState, canvasEditor } = useSelect();
-const { t } = useI18n();
+const { isSelect, canvasEditor } = useSelect();
 
-const DefaultSize = {
-  width: 900,
-  height: 1200,
-};
+const modalSizeRef = ref(null);
 
-const showModal = ref(false);
-const modalData = reactive({
-  width: DefaultSize.width,
-  height: DefaultSize.height,
-});
-let width = ref(DefaultSize.width);
-let height = ref(DefaultSize.height);
-let presetSize = reactive([
-  {
-    label: t('red_book_vertical'),
-    width: 900,
-    height: 1200,
-  },
-  {
-    label: t('red_book_horizontal'),
-    width: 1200,
-    height: 900,
-  },
-  {
-    label: t('phone_wallpaper'),
-    width: 1080,
-    height: 1920,
-  },
-  {
-    label: 'kindle',
-    width: 1200,
-    height: 860,
-  },
-  {
-    label: 'kindle-resize',
-    width: 860,
-    height: 1200,
-  },
-]);
+const width = ref(0);
+const height = ref(0);
 
 onMounted(() => {
-  canvasEditor.setSize(width.value, height.value);
+  const size = canvasEditor.getWorkspase();
+  const { width: w, height: h } = size || {};
+  width.value = w;
+  height.value = h;
   canvasEditor.on('sizeChange', (w, h) => {
     width.value = w;
     height.value = h;
   });
-
-  // canvas.editor.editorWorkspace.setSize(width.value, height.value);
-  // canvas.editor.editorWorkspace = new EditorWorkspace(canvas.c, {
-  //   width: width.value,
-  //   height: height.value,
-  // });
 });
 
-const setSizeBy = (w, h) => {
-  modalData.width = w;
-  modalData.height = h;
-};
 const setSize = () => {
   canvasEditor.setSize(width.value, height.value);
-  // canvas.editor.editorWorkspace.setSize(width.value, height.value);
 };
 
-const handleClose = () => {
-  showModal.value = false;
+const showSetSize = () => {
+  modalSizeRef.value.showSetSize(width.value, height.value);
 };
-
-const handleConfirm = () => {
-  width.value = modalData.width;
-  height.value = modalData.height;
+const handleConfirm = (w, h) => {
+  width.value = w;
+  height.value = h;
   setSize();
-  handleClose();
 };
 </script>
 
@@ -137,17 +72,11 @@ const handleConfirm = () => {
 :deep(.ivu-form-item) {
   margin-bottom: 0;
 }
-:deep(.ivu-divider-plain) {
-  &.ivu-divider-with-text-left {
-    margin: 10px 0;
-    font-weight: bold;
-  }
-}
 
+:deep(.ivu-input-number) {
+  width: 70px;
+}
 .form-wrap {
   display: flex;
-  justify-content: space-around;
-  align-content: center;
-  margin-bottom: 10px;
 }
 </style>
